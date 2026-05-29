@@ -47,3 +47,6 @@ Help AI coding agents understand the Gemileith OS repository quickly and work sa
 - Prefer edits in `app/` for runtime behavior and UI features.
 - Preserve the existing design system language and theme conventions.
 - Keep Android package naming and Compose conventions consistent with `com.example` sources.
+
+## Skills
+- See `app-workflow.skill.md` for repo-specific Android Compose and Gemini workflow guidance.
