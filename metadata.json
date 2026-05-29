@@ -1,0 +1,6 @@
+{
+  "name": "GemiLeith OS",
+  "description": "An extremely premium fluid dark eclipse custom launcher system with on-screen cosmic canvas, interactive micro-widgets, hardware-accelerated themes, and Cortel-AI context advising.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
