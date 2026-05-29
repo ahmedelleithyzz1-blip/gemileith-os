@@ -19,3 +19,12 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Keep Moshi models and Retrofit interfaces used by the Gemini API.
+-keep class com.example.ai.** { *; }
+-keep class com.example.data.** { *; }
+-keep class com.example.ui.** { *; }
+-keepclassmembers class * {
+    @com.squareup.moshi.JsonClass *;
+}
+-keep class kotlin.Metadata { *; }

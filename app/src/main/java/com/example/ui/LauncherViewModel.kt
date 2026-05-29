@@ -248,7 +248,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val finalReply = if (statsResponse != null) {
                 statsResponse
             } else {
-                geminiRepository.generateResponse(text, systemInstruction = systemIns)
+                geminiRepository.generateResponse(getApplication(), text, systemInstruction = systemIns)
             }
 
             _chatMessages.value = _chatMessages.value + ChatMessage(finalReply, false)

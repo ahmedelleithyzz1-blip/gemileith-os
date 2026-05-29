@@ -1,14 +1,20 @@
 package com.example.ai
 
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import com.example.BuildConfig
+import com.squareup.moshi.JsonDataException
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import okhttp3.OkHttpClient
+import retrofit2.HttpException
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.POST
 import retrofit2.http.Query
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 interface GeminiApiService {
@@ -43,7 +49,11 @@ object RetrofitClient {
 }
 
 class GeminiRepository {
-    suspend fun generateResponse(prompt: String, systemInstruction: String? = null): String {
+    suspend fun generateResponse(context: Context, prompt: String, systemInstruction: String? = null): String {
+        if (!isNetworkAvailable(context)) {
+            return "لا يوجد اتصال بالإنترنت. تأكد من الاتصال وأعد المحاولة لاحقًا."
+        }
+
         return try {
             val apiKey = BuildConfig.GEMINI_API_KEY
             if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
@@ -54,10 +64,26 @@ class GeminiRepository {
                 systemInstruction = systemInstruction?.let { Content(parts = listOf(Part(text = it))) }
             )
             val response = RetrofitClient.service.generateContent(apiKey, request)
-            response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text 
+            response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
                 ?: "لم أستطع معالجة السؤال الكوني حالياً. يرجى تكرار المحاولة."
+        } catch (e: IOException) {
+            "تعذر الاتصال بالخدمة. تحقق من اتصالك وحاول مرة أخرى."
+        } catch (e: HttpException) {
+            "واجهت الخدمة مشكلة أثناء الاتصال. يرجى المحاولة لاحقًا."
+        } catch (e: JsonDataException) {
+            "تعذر قراءة استجابة الشبكة بشكل صحيح. يرجى المحاولة لاحقًا."
         } catch (e: Exception) {
-            "فشل الاتصال بالنواة الذكية العصبية: ${e.localizedMessage}"
+            "فشل الاتصال بالنواة الذكية العصبية. يرجى المحاولة لاحقًا."
         }
+    }
+
+    private fun isNetworkAvailable(context: Context): Boolean {
+        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            ?: return false
+        val network = connectivityManager.activeNetwork ?: return false
+        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+        return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+                || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+                || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
     }
 }
