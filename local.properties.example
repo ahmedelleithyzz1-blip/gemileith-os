@@ -1,0 +1,7 @@
+# Copy this file to local.properties and set the SDK path for your environment.
+# This file should remain outside source control.
+# Example:
+# sdk.dir=/home/username/Android/Sdk
+# Use the absolute path to your Android SDK installation.
+
+sdk.dir=/path/to/android/sdk
