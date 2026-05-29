@@ -3,7 +3,9 @@ package com.example.ai
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.util.Log
 import com.example.BuildConfig
+import com.example.R
 import com.squareup.moshi.JsonDataException
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -49,15 +51,21 @@ object RetrofitClient {
 }
 
 class GeminiRepository {
+    companion object {
+        private const val TAG = "GeminiRepository"
+    }
+
     suspend fun generateResponse(context: Context, prompt: String, systemInstruction: String? = null): String {
         if (!isNetworkAvailable(context)) {
-            return "لا يوجد اتصال بالإنترنت. تأكد من الاتصال وأعد المحاولة لاحقًا."
+            Log.w(TAG, "Network unavailable for Gemini request")
+            return context.getString(R.string.gemini_no_network_message)
         }
 
         return try {
             val apiKey = BuildConfig.GEMINI_API_KEY
             if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
-                return "Cortex AI offline mode: Please configure your GEMINI_API_KEY in the AI Studio secrets provider to unlock the live neural net launcher advisor."
+                Log.w(TAG, "GEMINI_API_KEY is not configured or using placeholder")
+                return context.getString(R.string.gemini_api_key_unconfigured)
             }
             val request = GenerateContentRequest(
                 contents = listOf(Content(parts = listOf(Part(text = prompt)))),
@@ -67,13 +75,17 @@ class GeminiRepository {
             response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
                 ?: "لم أستطع معالجة السؤال الكوني حالياً. يرجى تكرار المحاولة."
         } catch (e: IOException) {
-            "تعذر الاتصال بالخدمة. تحقق من اتصالك وحاول مرة أخرى."
+            Log.e(TAG, "Network IO failure", e)
+            return context.getString(R.string.gemini_network_error)
         } catch (e: HttpException) {
-            "واجهت الخدمة مشكلة أثناء الاتصال. يرجى المحاولة لاحقًا."
+            Log.e(TAG, "HTTP error from Gemini API", e)
+            return context.getString(R.string.gemini_service_error)
         } catch (e: JsonDataException) {
-            "تعذر قراءة استجابة الشبكة بشكل صحيح. يرجى المحاولة لاحقًا."
+            Log.e(TAG, "Gemini response parse failure", e)
+            return context.getString(R.string.gemini_parse_error)
         } catch (e: Exception) {
-            "فشل الاتصال بالنواة الذكية العصبية. يرجى المحاولة لاحقًا."
+            Log.e(TAG, "Unexpected error calling Gemini API", e)
+            return context.getString(R.string.gemini_service_error)
         }
     }
 

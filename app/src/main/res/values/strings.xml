@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">GemiLeith OS</string>
+    <string name="gemini_no_network_message">لا يوجد اتصال بالإنترنت. تأكد من الاتصال وأعد المحاولة لاحقًا.</string>
+    <string name="gemini_api_key_unconfigured">وضع عدم الاتصال: يرجى تكوين GEMINI_API_KEY في إعدادات أسرار AI Studio لتفعيل المساعد العصبي.</string>
+    <string name="gemini_network_error">تعذر الاتصال بخدمة Gemini. تحقق من اتصالك وحاول مرة أخرى.</string>
+    <string name="gemini_service_error">واجهت خدمة Gemini مشكلة. يرجى المحاولة لاحقًا.</string>
+    <string name="gemini_parse_error">تعذر قراءة استجابة Gemini بشكل صحيح. يرجى المحاولة مرة أخرى.</string>
 </resources>

@@ -42,12 +42,22 @@ android {
     }
   }
 
+  val isReleaseSigningConfigured = listOf(
+      System.getenv("KEYSTORE_PATH"),
+      System.getenv("STORE_PASSWORD"),
+      System.getenv("KEY_PASSWORD")
+  ).all { !it.isNullOrBlank() }
+
   buildTypes {
     release {
       isCrunchPngs = false
       isMinifyEnabled = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      signingConfig = signingConfigs.getByName("release")
+      signingConfig = if (isReleaseSigningConfigured) {
+          signingConfigs.getByName("release")
+      } else {
+          signingConfigs.getByName("debugConfig")
+      }
     }
     debug {
       signingConfig = signingConfigs.getByName("debugConfig")

@@ -1,6 +1,7 @@
 package com.example.ui
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.AppDatabase
@@ -77,7 +78,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     seedDefaultItems()
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e("LauncherViewModel", "Failed to seed default items", e)
             }
         }
     }
