@@ -21,6 +21,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -49,7 +50,7 @@ object CosmicTheme {
 
 // 1. Clock Widget (Deep Metallic Eclipse Analog & Digital composite)
 @Composable
-fun DeepEclipseClockWidget(modifier: Modifier = Modifier) {
+fun DeepEclipseClockWidget(modifier: Modifier = Modifier, cinematicPhase: Int = 2, hasNotification: Boolean = false) {
     var currentTimeMillis by remember { mutableStateOf(System.currentTimeMillis()) }
 
     LaunchedEffect(Unit) {
@@ -75,18 +76,44 @@ fun DeepEclipseClockWidget(modifier: Modifier = Modifier) {
     // Breathing loop for clock backglow
     val infiniteTransition = rememberInfiniteTransition(label = "clockBackglow")
     val backglowScale by infiniteTransition.animateFloat(
-        initialValue = 0.95f,
-        targetValue = 1.05f,
+        initialValue = if (cinematicPhase == 0) { if (hasNotification) 0.8f else 0.5f } else 0.95f,
+        targetValue = if (cinematicPhase == 0) { if (hasNotification) 1.5f else 0.7f } else 1.05f,
         animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = LinearEasing),
+            animation = tween(if (hasNotification && cinematicPhase == 0) 500 else 2000, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "backglow"
     )
 
+    if (cinematicPhase == 0) {
+        // AOD Weathered text clock
+        val timeString = remember(currentTimeMillis) {
+            val sdf = java.text.SimpleDateFormat("HH:mm", java.util.Locale.US).apply {
+                timeZone = java.util.TimeZone.getTimeZone("UTC")
+            }
+            sdf.format(java.util.Date(currentTimeMillis))
+        }
+        Box(modifier = modifier.size(160.dp), contentAlignment = Alignment.Center) {
+            Text(
+                text = timeString,
+                color = Color.White.copy(alpha = backglowScale),
+                fontSize = 48.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Light,
+                style = TextStyle(
+                    shadow = Shadow(CosmicTheme.NeonCyan, blurRadius = 8f * backglowScale)
+                )
+            )
+        }
+        return
+    }
+
+    val renderAlpha = if (cinematicPhase == 1) 0.5f else 1f
+
     Box(
         modifier = modifier
             .size(160.dp)
+            .graphicsLayer(alpha = renderAlpha)
             .drawBehind {
                 // Background radial glow representing direct holographic laser backlights
                 drawCircle(
@@ -193,7 +220,10 @@ fun DeepEclipseClockWidget(modifier: Modifier = Modifier) {
 
 // 2. RAM Memory Crescent Widget (Concentric system meters)
 @Composable
-fun RamCrescentWidget(modifier: Modifier = Modifier) {
+fun RamCrescentWidget(modifier: Modifier = Modifier, cinematicPhase: Int = 2) {
+    if (cinematicPhase == 0) return
+    val renderAlpha = if (cinematicPhase == 1) 0.5f else 1f
+    
     val runtime = Runtime.getRuntime()
     var usedMemBytes by remember { mutableStateOf(runtime.totalMemory() - runtime.freeMemory()) }
     val maxMemBytes = runtime.maxMemory()
@@ -224,6 +254,7 @@ fun RamCrescentWidget(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .size(160.dp)
+            .graphicsLayer(alpha = renderAlpha)
             .background(CosmicTheme.DeepSpaceBlack.copy(alpha = 0.9f), RoundedCornerShape(24.dp))
             .border(1.5.dp, CosmicTheme.NeonMagenta.copy(alpha = 0.3f), RoundedCornerShape(24.dp))
             .padding(12.dp),
@@ -314,7 +345,10 @@ fun RamCrescentWidget(modifier: Modifier = Modifier) {
 
 // 3. Battery electromagnetic flow widget (with dynamic pulse animation on tap)
 @Composable
-fun BatteryElectromagneticWidget(modifier: Modifier = Modifier) {
+fun BatteryElectromagneticWidget(modifier: Modifier = Modifier, cinematicPhase: Int = 2) {
+    if (cinematicPhase == 0) return
+    val renderAlpha = if (cinematicPhase == 1) 0.5f else 1f
+
     var isChargingState by remember { mutableStateOf(true) }
     var sparkSignalTrigger by remember { mutableStateOf(0) }
 
@@ -333,6 +367,7 @@ fun BatteryElectromagneticWidget(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .size(160.dp)
+            .graphicsLayer(alpha = renderAlpha)
             .background(CosmicTheme.DeepSpaceBlack.copy(alpha = 0.9f), RoundedCornerShape(24.dp))
             .border(1.5.dp, CosmicTheme.NeonCyan.copy(alpha = 0.3f), RoundedCornerShape(24.dp))
             .clickable {
@@ -427,35 +462,484 @@ fun ForgedIcon(
     label: String,
     style: String,
     modifier: Modifier = Modifier,
-    cinematicPhase: Int = 2
+    cinematicPhase: Int = 2,
+    hasNotification: Boolean = false,
+    rechargeMultiplier: Float = 1.0f,
+    usageCount: Int = 0
 ) {
     val displayName = if (label.length > 8) label.substring(0, 7) + ".." else label
     val dynamicFontSize = if (displayName.length > 5) 12.sp else 16.sp
     val dynamicLineHeight = if (displayName.length > 5) 12.sp else 16.sp
 
+    val isLockScreenSilent = cinematicPhase == 1 && !hasNotification
+    
+    // Scale glow intensity based on usage frequency
+    val usageMultiplier = 1.0f + (usageCount.coerceAtMost(50) / 50f) * 1.5f
+
     val infiniteTransition = rememberInfiniteTransition(label = "forgerGlow")
     val hoverGlow by infiniteTransition.animateFloat(
-        initialValue = if (cinematicPhase == 1) 0.1f else 0.6f,
-        targetValue = if (cinematicPhase == 1) 0.3f else 1.0f,
+        initialValue = if (isLockScreenSilent) 0.1f else 0.6f * rechargeMultiplier * usageMultiplier,
+        targetValue = if (isLockScreenSilent) 0.3f else 1.0f * rechargeMultiplier * usageMultiplier,
         animationSpec = infiniteRepeatable(
-            animation = tween(if (cinematicPhase == 1) 5000 else 2200, easing = LinearEasing),
+            animation = tween(if (isLockScreenSilent) 5000 else 2200, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "hoverGlow"
     )
 
-    val lockModifier = if (cinematicPhase == 1) {
-        Modifier.graphicsLayer(alpha = 0.7f)
+    val lockModifier = if (isLockScreenSilent) {
+        Modifier.graphicsLayer {
+            alpha = 0.5f // Desaturated metallic dark feel via alpha
+        }
     } else Modifier
 
     Box(
         modifier = modifier
-            .size(72.dp)
-            .clip(CircleShape)
+            .size(96.dp)
             .then(lockModifier),
         contentAlignment = Alignment.Center
     ) {
         when (style) {
+            "SETTINGS_GEAR" -> {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 8.dp)
+                            .size(64.dp)
+                            .drawBehind {
+                                // 1. Solid Heavy Shadow
+                                drawCircle(
+                                    color = Color(0xFF0A0A0A),
+                                    radius = size.minDimension / 2.2f,
+                                    center = Offset(size.width / 2f + 12f, size.height / 2f + 12f)
+                                )
+                                // 2. Molten Glow
+                                drawCircle(
+                                    brush = Brush.radialGradient(
+                                        colors = listOf(Color(0xFFFF3300).copy(alpha = 0.8f * hoverGlow), Color.Transparent)
+                                    ),
+                                    radius = size.minDimension * 0.9f
+                                )
+                            }
+                            // 3. Artifact Weathered Structure (Background)
+                            .background(Color(0xFF2B2B2B), CircleShape)
+                    ) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            // Weathered Gear teeth via dashed stroke
+                            drawCircle(
+                                color = Color(0xFFAAAAAA),
+                                radius = size.minDimension / 2.1f,
+                                style = Stroke(
+                                    width = 12f,
+                                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(15f, 10f), 0f)
+                                )
+                            )
+                            // Oxidized inner ring
+                            drawCircle(
+                                color = Color(0xFF111111),
+                                radius = size.minDimension / 3.5f,
+                                style = Stroke(width = 4f)
+                            )
+                            // 4. Core Energy Pulse
+                            drawCircle(
+                                color = Color.White,
+                                radius = 3f
+                            )
+                            drawCircle(
+                                color = Color(0xFFFF5500),
+                                radius = 7f,
+                                style = Stroke(2f)
+                            )
+                        }
+                    }
+                    Text(
+                        text = displayName,
+                        color = Color(0xFFFF5500),
+                        fontSize = dynamicFontSize,
+                        lineHeight = dynamicLineHeight,
+                        textAlign = TextAlign.Center,
+                        fontWeight = FontWeight.Black,
+                        fontFamily = FontFamily.Serif,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 2.dp),
+                        style = TextStyle(
+                            shadow = Shadow(Color.Black, blurRadius = 8f, offset = Offset(0f, 4f))
+                        )
+                    )
+                }
+            }
+            "CAMERA_LENS" -> {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 8.dp)
+                            .size(64.dp)
+                            .drawBehind {
+                                // 1. Dispersed Nebula Shadow (Wide spread)
+                                drawCircle(
+                                    brush = Brush.radialGradient(
+                                        colors = listOf(Color(0xFF00AAFF).copy(alpha = 0.3f), Color.Transparent)
+                                    ),
+                                    radius = size.minDimension * 1.2f,
+                                    center = Offset(size.width / 2f, size.height / 2f + 8f)
+                                )
+                                // 2. Refractive Glow from cracks
+                                drawCircle(
+                                    color = Color(0xFF00FFFF).copy(alpha = 0.5f * hoverGlow),
+                                    radius = size.minDimension / 2f
+                                )
+                            }
+                            // 3. Artifact Weathered Structure (Black Matte Glass)
+                            .background(Color(0xFF0F1A20), CircleShape)
+                    ) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            // Lens outer ring
+                            drawCircle(
+                                color = Color(0xFF335566),
+                                radius = size.minDimension / 2.2f,
+                                style = Stroke(width = 4f)
+                            )
+                            // Aperture blades simulation (dashed rotated)
+                            drawCircle(
+                                color = Color(0xFF223344),
+                                radius = size.minDimension / 3f,
+                                style = Stroke(
+                                    width = 6f,
+                                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(30f, 5f), 0f)
+                                )
+                            )
+                            // Weathered chip/crack
+                            drawLine(
+                                color = Color(0xFF00FFFF).copy(alpha = hoverGlow), // Glowing crack
+                                start = Offset(size.width / 2f, 0f),
+                                end = Offset(size.width / 2f + 15f, size.height / 3f),
+                                strokeWidth = 2f
+                            )
+                            // 4. Core pure energy pulse
+                            drawCircle(
+                                color = Color.White,
+                                radius = 2f,
+                                center = Offset(size.width / 2.2f, size.height / 2.2f) // offset flare
+                            )
+                            drawCircle(
+                                color = Color(0xFF00FFFF),
+                                radius = 6f,
+                                style = Stroke(1.5f),
+                                center = Offset(size.width / 2.2f, size.height / 2.2f)
+                            )
+                        }
+                    }
+                    Text(
+                        text = displayName,
+                        color = Color(0xFF00FFFF),
+                        fontSize = dynamicFontSize,
+                        lineHeight = dynamicLineHeight,
+                        textAlign = TextAlign.Center,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.SansSerif,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 2.dp),
+                        style = TextStyle(
+                            shadow = Shadow(Color(0xFF00AAFF), blurRadius = 12f)
+                        )
+                    )
+                }
+            }
+            "WHATSAPP_MATRIX" -> {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 8.dp)
+                            .size(64.dp)
+                            .drawBehind {
+                                // 1. Directional Shadow
+                                drawCircle(
+                                    brush = Brush.radialGradient(
+                                        colors = listOf(Color(0xFF002200).copy(alpha = 0.8f), Color.Transparent)
+                                    ),
+                                    radius = size.minDimension,
+                                    center = Offset(size.width / 2f + 8f, size.height / 2f + 8f)
+                                )
+                                // 2. Green Aura Glow
+                                drawCircle(
+                                    brush = Brush.radialGradient(
+                                        colors = listOf(Color(0xFF00FF44).copy(alpha = 0.6f * hoverGlow), Color.Transparent)
+                                    ),
+                                    radius = size.minDimension * 0.9f
+                                )
+                            }
+                            // 3. Artifact Weathered Structure (Chat bubble silhouette)
+                            .background(Color(0xFF112211), RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp, bottomEnd = 32.dp, bottomStart = 8.dp))
+                    ) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            // Outline
+                            drawPath(
+                                path = androidx.compose.ui.graphics.Path().apply {
+                                    addRoundRect(
+                                        androidx.compose.ui.geometry.RoundRect(
+                                            4f, 4f, size.width - 4f, size.height - 4f,
+                                            androidx.compose.ui.geometry.CornerRadius(size.width / 2f)
+                                        )
+                                    )
+                                },
+                                color = Color(0xFF336633),
+                                style = Stroke(
+                                    width = 3f,
+                                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(40f, 10f), 0f)
+                                )
+                            )
+                            // 4. Core Energy Pulse (Green Dot)
+                            drawCircle(
+                                color = Color.White,
+                                radius = 2.5f,
+                                center = Offset(size.width / 2f, size.height / 2f)
+                            )
+                            drawCircle(
+                                color = Color(0xFF00FF44),
+                                radius = 8f,
+                                style = Stroke(width = 2f),
+                                center = Offset(size.width / 2f, size.height / 2f)
+                            )
+                            drawCircle(
+                                color = Color(0xFF00FF44).copy(alpha = 0.5f),
+                                radius = 16f,
+                                style = Stroke(width = 1f),
+                                center = Offset(size.width / 2f, size.height / 2f)
+                            )
+                        }
+                    }
+                    Text(
+                        text = displayName,
+                        color = Color(0xFF00FF44),
+                        fontSize = dynamicFontSize,
+                        lineHeight = dynamicLineHeight,
+                        textAlign = TextAlign.Center,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 2.dp),
+                        style = TextStyle(
+                            shadow = Shadow(Color(0xFF006611), blurRadius = 8f, offset = Offset(1f, 1f))
+                        )
+                    )
+                }
+            }
+            "CHROME_SPHERICAL" -> {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 8.dp)
+                            .size(64.dp)
+                            .drawBehind {
+                                // 1. Solid Heavy Shadow
+                                drawCircle(
+                                    color = Color(0xFF000000).copy(alpha = 0.9f),
+                                    radius = size.minDimension / 2f,
+                                    center = Offset(size.width / 2f + 10f, size.height / 2f + 10f)
+                                )
+                                // 2. Refractive Aura Glow (Multi-color chrome glow)
+                                drawCircle(
+                                    brush = Brush.radialGradient(
+                                        colors = listOf(Color(0xFF4285F4).copy(alpha = 0.6f * hoverGlow), Color.Transparent)
+                                    ),
+                                    radius = size.minDimension
+                                )
+                            }
+                            // 3. Artifact Weathered Structure (Metallic sphere)
+                            .background(Brush.radialGradient(listOf(Color(0xFF333333), Color(0xFF111111))), CircleShape)
+                    ) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            // Chrome's inner circle structure
+                            drawCircle(
+                                color = Color(0xFF222222),
+                                radius = size.minDimension / 3f,
+                                style = Stroke(width = 4f)
+                            )
+                            // Segment dividers
+                            drawLine(color = Color(0xFF555555), start = Offset(size.width/2f, 0f), end = Offset(size.width/2f, size.height/3f), strokeWidth = 3f)
+                            drawLine(color = Color(0xFF555555), start = Offset(size.width/3.5f, size.height/1.5f), end = Offset(10f, size.height-10f), strokeWidth = 3f)
+                            drawLine(color = Color(0xFF555555), start = Offset(size.width - size.width/3.5f, size.height/1.5f), end = Offset(size.width-10f, size.height-10f), strokeWidth = 3f)
+                            // 4. Core Energy Pulse (Google Blue)
+                            drawCircle(color = Color.White, radius = 4f)
+                            drawCircle(color = Color(0xFF4285F4), radius = 10f, style = Stroke(2f))
+                        }
+                    }
+                    Text(
+                        text = displayName, color = Color(0xFF4285F4), fontSize = dynamicFontSize, lineHeight = dynamicLineHeight, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontFamily = FontFamily.SansSerif, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 2.dp), style = TextStyle(shadow = Shadow(Color(0xFF003399), blurRadius = 12f))
+                    )
+                }
+            }
+            "SPOTIFY_WAVES" -> {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 8.dp)
+                            .size(64.dp)
+                            .drawBehind {
+                                drawCircle(brush = Brush.radialGradient(colors = listOf(Color(0xFF003300).copy(alpha = 0.9f), Color.Transparent)), radius = size.minDimension * 1.1f, center = Offset(size.width / 2f + 5f, size.height / 2f + 15f))
+                                drawCircle(brush = Brush.radialGradient(colors = listOf(Color(0xFF1DB954).copy(alpha = 0.6f * hoverGlow), Color.Transparent)), radius = size.minDimension * 0.9f)
+                            }
+                            .background(Color(0xFF191414), CircleShape)
+                    ) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            // Weathered outer rim
+                            drawCircle(color = Color(0xFF2A2A2A), radius = size.minDimension / 2.1f, style = Stroke(width = 6f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(50f, 15f), 0f)))
+                            // 3. Artifact Weathered Structure (Radar Waves)
+                            val pathEffect = PathEffect.dashPathEffect(floatArrayOf(30f, 5f), hoverGlow * 10f)
+                            drawArc(color = Color(0xFF0A4A20), startAngle = 200f, sweepAngle = 140f, useCenter = false, topLeft = Offset(10f, 15f), size = androidx.compose.ui.geometry.Size(size.width-20f, size.height/2f), style = Stroke(width = 8f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                            drawArc(color = Color(0xFF117733), startAngle = 205f, sweepAngle = 130f, useCenter = false, topLeft = Offset(18f, 25f), size = androidx.compose.ui.geometry.Size(size.width-36f, size.height/2.5f), style = Stroke(width = 6f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                            // 4. Core Energy Pulse (Green Neon Wave)
+                            drawArc(color = Color(0xFF1DB954), startAngle = 210f, sweepAngle = 120f, useCenter = false, topLeft = Offset(28f, 35f), size = androidx.compose.ui.geometry.Size(size.width-56f, size.height/3.5f), style = Stroke(width = 4f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                            drawArc(color = Color.White, startAngle = 210f, sweepAngle = 120f, useCenter = false, topLeft = Offset(28f, 35f), size = androidx.compose.ui.geometry.Size(size.width-56f, size.height/3.5f), style = Stroke(width = 1.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round, pathEffect = pathEffect))
+                        }
+                    }
+                    Text(
+                        text = displayName, color = Color(0xFF1DB954), fontSize = dynamicFontSize, lineHeight = dynamicLineHeight, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontFamily = FontFamily.SansSerif, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 2.dp), style = TextStyle(shadow = Shadow(Color(0xFF003300), blurRadius = 8f))
+                    )
+                }
+            }
+            "PHONE_HOLOGRAPHIC" -> {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 8.dp)
+                            .size(64.dp)
+                            .drawBehind {
+                                // 1. Dispersed Nebula Shadow
+                                drawCircle(brush = Brush.radialGradient(colors = listOf(Color(0xFF002255).copy(alpha = 0.5f), Color.Transparent)), radius = size.minDimension * 1.2f, center = Offset(size.width / 2f, size.height / 2f + 8f))
+                                // 2. Refractive Aura Glow
+                                drawCircle(color = Color(0xFF00A2FF).copy(alpha = 0.4f * hoverGlow), radius = size.minDimension / 2.2f)
+                            }
+                            .background(Color(0xFF0A1118), CircleShape)
+                    ) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            // Dial outline
+                            drawCircle(color = Color(0xFF113355), radius = size.minDimension / 2.2f, style = Stroke(width = 3f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)))
+                            // Telephone Receiver (Abstracted)
+                            val receiverPath = androidx.compose.ui.graphics.Path().apply {
+                                moveTo(size.width * 0.3f, size.height * 0.7f)
+                                quadraticBezierTo(size.width * 0.1f, size.height * 0.5f, size.width * 0.3f, size.height * 0.3f)
+                                lineTo(size.width * 0.45f, size.height * 0.45f)
+                                quadraticBezierTo(size.width * 0.35f, size.height * 0.55f, size.width * 0.55f, size.height * 0.65f)
+                                lineTo(size.width * 0.7f, size.height * 0.5f)
+                                quadraticBezierTo(size.width * 0.9f, size.height * 0.7f, size.width * 0.7f, size.height * 0.9f)
+                                quadraticBezierTo(size.width * 0.5f, size.height * 0.9f, size.width * 0.3f, size.height * 0.7f)
+                            }
+                            drawPath(path = receiverPath, color = Color(0xFF00A2FF).copy(alpha = 0.2f), style = androidx.compose.ui.graphics.drawscope.Fill)
+                            drawPath(path = receiverPath, color = Color(0xFF00A2FF), style = Stroke(width = 2f))
+                            
+                            // 4. Core Energy Pulse (Microdot light on receiver)
+                            drawCircle(color = Color.White, radius = 2f, center = Offset(size.width * 0.7f, size.height * 0.8f))
+                        }
+                    }
+                    Text(
+                        text = displayName, color = Color(0xFF00A2FF), fontSize = dynamicFontSize, lineHeight = dynamicLineHeight, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 2.dp), style = TextStyle(shadow = Shadow(Color(0xFF0044AA), blurRadius = 10f))
+                    )
+                }
+            }
+            "CALENDAR_QUARTZ" -> {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 8.dp)
+                            .size(64.dp)
+                            .drawBehind {
+                                drawRect(brush = Brush.radialGradient(colors = listOf(Color(0xFF050505).copy(alpha = 0.9f), Color.Transparent)), topLeft = Offset(10f, 15f), size = androidx.compose.ui.geometry.Size(size.width, size.height))
+                                drawRect(brush = Brush.radialGradient(colors = listOf(Color(0xFF0066FF).copy(alpha = 0.4f * hoverGlow), Color.Transparent)), topLeft = Offset(0f, 0f), size = androidx.compose.ui.geometry.Size(size.width, size.height))
+                            }
+                            .background(Color(0xFF1E2124), RoundedCornerShape(12.dp))
+                    ) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            // Top binding rings
+                            drawLine(color = Color(0xFFAAAAAA), start = Offset(size.width * 0.3f, -5f), end = Offset(size.width * 0.3f, 15f), strokeWidth = 6f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                            drawLine(color = Color(0xFFAAAAAA), start = Offset(size.width * 0.7f, -5f), end = Offset(size.width * 0.7f, 15f), strokeWidth = 6f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                            
+                            // Calendar grid structure
+                            drawLine(color = Color(0xFF333333), start = Offset(0f, size.height * 0.35f), end = Offset(size.width, size.height * 0.35f), strokeWidth = 2f)
+                            drawLine(color = Color(0xFF333333), start = Offset(0f, size.height * 0.65f), end = Offset(size.width, size.height * 0.65f), strokeWidth = 2f)
+                            drawLine(color = Color(0xFF333333), start = Offset(size.width * 0.33f, size.height * 0.35f), end = Offset(size.width * 0.33f, size.height), strokeWidth = 2f)
+                            drawLine(color = Color(0xFF333333), start = Offset(size.width * 0.66f, size.height * 0.35f), end = Offset(size.width * 0.66f, size.height), strokeWidth = 2f)
+                            
+                            // 4. Core Energy Pulse (Glowing Current Day indicator)
+                            drawRoundRect(color = Color(0xFF0066FF).copy(alpha = 0.3f), topLeft = Offset(size.width * 0.33f + 2f, size.height * 0.35f + 2f), size = androidx.compose.ui.geometry.Size(size.width * 0.33f - 4f, size.height * 0.3f - 4f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f))
+                            drawRoundRect(color = Color(0xFF00A2FF), style = Stroke(2f), topLeft = Offset(size.width * 0.33f + 2f, size.height * 0.35f + 2f), size = androidx.compose.ui.geometry.Size(size.width * 0.33f - 4f, size.height * 0.3f - 4f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f))
+                            
+                            drawCircle(color = Color.White, radius = 2f, center = Offset(size.width * 0.5f, size.height * 0.5f))
+                        }
+                    }
+                    Text(
+                        text = displayName, color = Color(0xFF0066FF), fontSize = dynamicFontSize, lineHeight = dynamicLineHeight, textAlign = TextAlign.Center, fontWeight = FontWeight.SemiBold, fontFamily = FontFamily.Serif, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 2.dp), style = TextStyle(shadow = Shadow(Color(0xFF000000), blurRadius = 8f))
+                    )
+                }
+            }
+            "FILES_VAULT" -> {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 12.dp)
+                            .size(width = 64.dp, height = 50.dp)
+                            .drawBehind {
+                                drawRect(brush = Brush.radialGradient(colors = listOf(Color(0xFF000000).copy(alpha = 0.9f), Color.Transparent)), topLeft = Offset(5f, 10f), size = androidx.compose.ui.geometry.Size(size.width, size.height))
+                                drawRect(brush = Brush.radialGradient(colors = listOf(Color(0xFFFFBB00).copy(alpha = 0.5f * hoverGlow), Color.Transparent)), topLeft = Offset(0f, 0f), size = androidx.compose.ui.geometry.Size(size.width, size.height))
+                            }
+                            .background(Color(0xFF221100), RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp))
+                    ) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            // Folder back tab
+                            drawPath(
+                                path = androidx.compose.ui.graphics.Path().apply {
+                                    moveTo(0f, size.height * 0.2f)
+                                    lineTo(size.width * 0.3f, size.height * 0.2f)
+                                    lineTo(size.width * 0.4f, 0f)
+                                    lineTo(size.width, 0f)
+                                    lineTo(size.width, size.height)
+                                    lineTo(0f, size.height)
+                                    close()
+                                },
+                                color = Color(0xFF332200),
+                                style = androidx.compose.ui.graphics.drawscope.Fill
+                            )
+                            // Folder front cover (partially open)
+                            drawPath(
+                                path = androidx.compose.ui.graphics.Path().apply {
+                                    moveTo(0f, size.height * 0.3f)
+                                    lineTo(size.width, size.height * 0.3f)
+                                    lineTo(size.width * 0.9f, size.height)
+                                    lineTo(0f, size.height)
+                                    close()
+                                },
+                                color = Color(0xFF443311),
+                                style = androidx.compose.ui.graphics.drawscope.Fill
+                            )
+                            drawPath(
+                                path = androidx.compose.ui.graphics.Path().apply {
+                                    moveTo(0f, size.height * 0.3f)
+                                    lineTo(size.width, size.height * 0.3f)
+                                },
+                                color = Color(0xFF664400),
+                                style = Stroke(width = 2f)
+                            )
+                            // 4. Core Energy Pulse (Glowing data sheet inside)
+                            drawRect(color = Color(0xFFFFBB00), topLeft = Offset(size.width * 0.4f, size.height * 0.1f), size = androidx.compose.ui.geometry.Size(size.width * 0.4f, size.height * 0.15f), style = Stroke(1.5f))
+                            drawLine(color = Color.White, start = Offset(size.width * 0.45f, size.height * 0.17f), end = Offset(size.width * 0.7f, size.height * 0.17f), strokeWidth = 2f)
+                        }
+                    }
+                    Text(
+                        text = displayName, color = Color(0xFFFFCC00), fontSize = dynamicFontSize, lineHeight = dynamicLineHeight, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontFamily = FontFamily.SansSerif, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 2.dp), style = TextStyle(shadow = Shadow(Color(0xFF663300), blurRadius = 8f))
+                    )
+                }
+            }
             "NEON_ECLIPSE" -> {
                 // Glow bloom shadow, totally blackened core eclipse center with a bright neon cyan outline ring
                 Box(

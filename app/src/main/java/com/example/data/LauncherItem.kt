@@ -14,5 +14,7 @@ data class LauncherItem(
     val rotation: Float = 0.0f,
     val filterStyle: String = "NEON_ECLIPSE",
     val isWidget: Boolean = false,
-    val widgetType: String = "NONE"
+    val widgetType: String = "NONE",
+    val hasNotification: Boolean = false,
+    val usageCount: Int = 0
 )

@@ -20,6 +20,12 @@ interface LauncherItemDao {
     @Query("UPDATE launcher_items SET filterStyle = :filterStyle WHERE id = :id")
     suspend fun updateFilterStyle(id: String, filterStyle: String)
 
+    @Query("UPDATE launcher_items SET usageCount = usageCount + 1 WHERE id = :id")
+    suspend fun incrementUsageCount(id: String)
+
+    @Query("UPDATE launcher_items SET hasNotification = :hasNotification WHERE id = :id")
+    suspend fun updateNotification(id: String, hasNotification: Boolean)
+
     @Query("DELETE FROM launcher_items WHERE id = :id")
     suspend fun deleteItemById(id: String)
 

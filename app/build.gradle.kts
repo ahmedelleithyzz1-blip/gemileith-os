@@ -17,12 +17,6 @@ android {
     versionCode = 1
     versionName = "1.0"
 
-    buildConfigField(
-        "String",
-        "GEMINI_API_KEY",
-        "\"${project.findProperty("GEMINI_API_KEY") ?: "MY_GEMINI_API_KEY"}\""
-    )
-
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
@@ -42,22 +36,12 @@ android {
     }
   }
 
-  val isReleaseSigningConfigured = listOf(
-      System.getenv("KEYSTORE_PATH"),
-      System.getenv("STORE_PASSWORD"),
-      System.getenv("KEY_PASSWORD")
-  ).all { !it.isNullOrBlank() }
-
   buildTypes {
     release {
       isCrunchPngs = false
-      isMinifyEnabled = true
+      isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      signingConfig = if (isReleaseSigningConfigured) {
-          signingConfigs.getByName("release")
-      } else {
-          signingConfigs.getByName("debugConfig")
-      }
+      signingConfig = signingConfigs.getByName("release")
     }
     debug {
       signingConfig = signingConfigs.getByName("debugConfig")

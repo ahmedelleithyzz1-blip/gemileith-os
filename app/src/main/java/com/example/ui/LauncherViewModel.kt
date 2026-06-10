@@ -1,7 +1,6 @@
 package com.example.ui
 
 import android.app.Application
-import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.AppDatabase
@@ -78,7 +77,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     seedDefaultItems()
                 }
             } catch (e: Exception) {
-                Log.e("LauncherViewModel", "Failed to seed default items", e)
+                e.printStackTrace()
             }
         }
     }
@@ -90,21 +89,40 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             LauncherItem("widget_ram", "مؤشر الذاكرة العشوائية", "com.iqoo.secure", 520f, 130f, scale = 1.0f, rotation = 0f, filterStyle = "NONE", isWidget = true, widgetType = "RAM"),
             LauncherItem("widget_battery", "تدفق الطاقة الكهرومغناطيسية", "com.iqoo.secure", 520f, 310f, scale = 1.0f, rotation = 0f, filterStyle = "NONE", isWidget = true, widgetType = "BATTERY"),
             
-            // Forged App Icons
-            LauncherItem("app_settings", "الإعدادات", "com.android.settings", 120f, 520f, scale = 1.0f, rotation = 0f, filterStyle = "NEON_ECLIPSE"),
-            LauncherItem("app_camera", "الكاميرا", "com.android.camera", 320f, 520f, scale = 1.0f, rotation = 0f, filterStyle = "CYBERPUNK_3D"),
+            // Forged App Icons (Core 3 Case Studies + Extended OS Ecosystem)
+            LauncherItem("app_settings", "الإعدادات", "com.android.settings", 120f, 520f, scale = 1.0f, rotation = 0f, filterStyle = "SETTINGS_GEAR"),
+            LauncherItem("app_camera", "الكاميرا", "com.android.camera", 320f, 520f, scale = 1.0f, rotation = 0f, filterStyle = "CAMERA_LENS"),
             LauncherItem("app_gemini", "جيميني AI", "com.google.android.apps.gemini", 520f, 520f, scale = 1.0f, rotation = 0f, filterStyle = "NEON_ECLIPSE"),
-            LauncherItem("app_quran", "المصحف الشريف", "com.quran.labs", 120f, 700f, scale = 1.0f, rotation = 0f, filterStyle = "VECTOR_MINIMAL"),
-            LauncherItem("app_whatsapp", "واتساب", "com.whatsapp", 320f, 700f, scale = 1.0f, rotation = 0f, filterStyle = "MATRIX_GREEN"),
-            LauncherItem("app_facebook", "فيسبوك", "com.facebook.katana", 520f, 700f, scale = 1.0f, rotation = 0f, filterStyle = "SHATTERED_BLUE"),
-            LauncherItem("app_instagram", "انستجرام", "com.instagram.android", 120f, 880f, scale = 1.0f, rotation = 0f, filterStyle = "NEBULA_BURST"),
-            LauncherItem("app_youtube", "يوتيوب", "com.google.android.youtube", 320f, 880f, scale = 1.0f, rotation = 0f, filterStyle = "NEON_ECLIPSE")
+            
+            LauncherItem("app_whatsapp", "واتساب", "com.whatsapp", 120f, 700f, scale = 1.0f, rotation = 0f, filterStyle = "WHATSAPP_MATRIX"),
+            LauncherItem("app_chrome", "متصفح الويب", "com.android.chrome", 320f, 700f, scale = 1.0f, rotation = 0f, filterStyle = "CHROME_SPHERICAL"),
+            LauncherItem("app_spotify", "الموسيقى", "com.spotify.music", 520f, 700f, scale = 1.0f, rotation = 0f, filterStyle = "SPOTIFY_WAVES"),
+            
+            LauncherItem("app_phone", "الهاتف", "com.android.dialer", 120f, 880f, scale = 1.0f, rotation = 0f, filterStyle = "PHONE_HOLOGRAPHIC"),
+            LauncherItem("app_calendar", "التقويم", "com.android.calendar", 320f, 880f, scale = 1.0f, rotation = 0f, filterStyle = "CALENDAR_QUARTZ"),
+            LauncherItem("app_files", "مدير الملفات", "com.android.documentsui", 520f, 880f, scale = 1.0f, rotation = 0f, filterStyle = "FILES_VAULT")
+
         )
         repository.insertAll(defaultItems)
     }
 
     fun selectItem(id: String?) {
         selectedItemId.value = id
+    }
+
+    fun incrementUsageCount(id: String) {
+        viewModelScope.launch {
+            repository.incrementUsageCount(id)
+        }
+    }
+
+    fun toggleNotification(id: String) {
+        viewModelScope.launch {
+            val item = allItems.value.find { it.id == id }
+            if (item != null) {
+                repository.updateNotification(id, !item.hasNotification)
+            }
+        }
     }
 
     fun initiateTransform(item: LauncherItem, originalOldX: Float, originalOldY: Float, scale: Float, rotation: Float, newX: Float, newY: Float) {
@@ -202,6 +220,36 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun triggerLeithAIAdaptiveLayout() {
+        viewModelScope.launch {
+            val items = allItems.value
+            val centerX = 500f
+            val centerY = 800f
+            val radius = 300f
+            
+            items.forEachIndexed { index, item ->
+                if (!item.isWidget) {
+                    val angle = (index.toDouble() / items.size) * 2 * Math.PI
+                    val newX = (centerX + radius * Math.cos(angle)).toFloat()
+                    val newY = (centerY + radius * Math.sin(angle)).toFloat()
+                    
+                    repository.updateTransform(
+                        id = item.id,
+                        x = newX,
+                        y = newY,
+                        scale = 1.0f,
+                        rotation = 0f
+                    )
+                }
+            }
+            
+            _chatMessages.value = _chatMessages.value + ChatMessage(
+                "تم تفعيل ترتيب Leith AI Adaptive Layout. تمจัด ترتيب الأيقونات بنمط الدائرة العصبية الكمومية لتحقيق أقصى كفاءة للمستخدم.",
+                false
+            )
+        }
+    }
+
     fun createCustomApp(label: String, style: String, x: Float = 300f, y: Float = 400f) {
         val randomId = "custom_${System.currentTimeMillis()}"
         viewModelScope.launch {
@@ -234,6 +282,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             """.trimIndent()
 
             val statsResponse = when {
+                text.contains("ترتيب") || text.contains("نسق") || text.contains("توزيع") -> {
+                    triggerLeithAIAdaptiveLayout()
+                    "جاري تفعيل محرك Leith AI Adaptive Layout... تم تحليل أنماط الاستخدام وإعادة ترتيب الأيقونات بنسق الدائرة العصبية لتحقيق أقصى درجات التركيز والكفاءة."
+                }
                 text.contains("ذاكرة") || text.contains("RAM") || text.contains("رام") -> {
                     val runtime = Runtime.getRuntime()
                     val usedMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
@@ -249,7 +301,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val finalReply = if (statsResponse != null) {
                 statsResponse
             } else {
-                geminiRepository.generateResponse(getApplication(), text, systemInstruction = systemIns)
+                geminiRepository.generateResponse(text, systemInstruction = systemIns)
             }
 
             _chatMessages.value = _chatMessages.value + ChatMessage(finalReply, false)

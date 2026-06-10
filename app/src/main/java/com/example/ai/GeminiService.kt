@@ -1,22 +1,14 @@
 package com.example.ai
 
-import android.content.Context
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
-import android.util.Log
 import com.example.BuildConfig
-import com.example.R
-import com.squareup.moshi.JsonDataException
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import okhttp3.OkHttpClient
-import retrofit2.HttpException
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.POST
 import retrofit2.http.Query
-import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 interface GeminiApiService {
@@ -51,51 +43,21 @@ object RetrofitClient {
 }
 
 class GeminiRepository {
-    companion object {
-        private const val TAG = "GeminiRepository"
-    }
-
-    suspend fun generateResponse(context: Context, prompt: String, systemInstruction: String? = null): String {
-        if (!isNetworkAvailable(context)) {
-            Log.w(TAG, "Network unavailable for Gemini request")
-            return context.getString(R.string.gemini_no_network_message)
-        }
-
+    suspend fun generateResponse(prompt: String, systemInstruction: String? = null): String {
         return try {
             val apiKey = BuildConfig.GEMINI_API_KEY
             if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
-                Log.w(TAG, "GEMINI_API_KEY is not configured or using placeholder")
-                return context.getString(R.string.gemini_api_key_unconfigured)
+                return "Cortex AI offline mode: Please configure your GEMINI_API_KEY in the AI Studio secrets provider to unlock the live neural net launcher advisor."
             }
             val request = GenerateContentRequest(
                 contents = listOf(Content(parts = listOf(Part(text = prompt)))),
                 systemInstruction = systemInstruction?.let { Content(parts = listOf(Part(text = it))) }
             )
             val response = RetrofitClient.service.generateContent(apiKey, request)
-            response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
+            response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text 
                 ?: "لم أستطع معالجة السؤال الكوني حالياً. يرجى تكرار المحاولة."
-        } catch (e: IOException) {
-            Log.e(TAG, "Network IO failure", e)
-            return context.getString(R.string.gemini_network_error)
-        } catch (e: HttpException) {
-            Log.e(TAG, "HTTP error from Gemini API", e)
-            return context.getString(R.string.gemini_service_error)
-        } catch (e: JsonDataException) {
-            Log.e(TAG, "Gemini response parse failure", e)
-            return context.getString(R.string.gemini_parse_error)
         } catch (e: Exception) {
-            Log.e(TAG, "Unexpected error calling Gemini API", e)
-            return context.getString(R.string.gemini_service_error)
+            "فشل الاتصال بالنواة الذكية العصبية: ${e.localizedMessage}"
         }
-    }
-
-    private fun isNetworkAvailable(context: Context): Boolean {
-        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-            ?: return false
-        val network = connectivityManager.activeNetwork ?: return false
-        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
-        return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
-                || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
-                || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
     }
 }

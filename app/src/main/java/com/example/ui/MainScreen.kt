@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,6 +28,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -84,6 +86,7 @@ fun MainScreen(
     val activeSelectedItem = items.find { it.id == selectedItemId }
     var tempScale by remember(selectedItemId, activeSelectedItem?.scale) { mutableStateOf((activeSelectedItem?.scale?.takeIf { !it.isNaN() && it.isFinite() } ?: 1.0f).coerceIn(0.5f, 2.0f)) }
     var tempRotation by remember(selectedItemId, activeSelectedItem?.rotation) { mutableStateOf((activeSelectedItem?.rotation?.takeIf { !it.isNaN() && it.isFinite() } ?: 0f).coerceIn(-360f, 360f)) }
+    var isQuickSettingsOpen by remember { mutableStateOf(false) }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -91,8 +94,20 @@ fun MainScreen(
             ModalDrawerSheet(
                 modifier = Modifier
                     .width(320.dp)
-                    .fillMaxHeight(),
-                drawerContainerColor = CosmicTheme.DeepSpaceBlack,
+                    .fillMaxHeight()
+                    .drawBehind {
+                        val stroke = Stroke(width = 4f * (1f + (backdropAnimValue % 100f) / 100f))
+                        drawRoundRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(CosmicTheme.NeonMagenta, CosmicTheme.NeonCyan, Color.Transparent),
+                                startY = 0f,
+                                endY = size.height * 0.5f + (backdropAnimValue % 500f)
+                            ),
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(24.dp.toPx()),
+                            style = stroke
+                        )
+                    },
+                drawerContainerColor = CosmicTheme.DeepSpaceBlack.copy(alpha = 0.9f),
                 drawerShape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp)
             ) {
                 CortexDrawerContent(
@@ -417,6 +432,18 @@ fun MainScreen(
                                         Text("إطلاق كوكبة أندروميدا (12 أيقونة مستجدة)", fontSize = 9.sp, fontWeight = FontWeight.Bold)
                                     }
 
+                                    Button(
+                                        onClick = { viewModel.toggleNotification("app_whatsapp") },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Color(0xFF00FF44),
+                                            contentColor = Color.Black
+                                        ),
+                                        modifier = Modifier.weight(0.7f).height(38.dp),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Text("إشعار", fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                    }
+
                                     Box(
                                         modifier = Modifier
                                             .weight(1f)
@@ -443,6 +470,8 @@ fun MainScreen(
         ) { innerPadding ->
             var screenWidthPx by remember { mutableStateOf(1080f) }
             var screenHeightPx by remember { mutableStateOf(2000f) }
+            var touchOffset by remember { mutableStateOf(Offset.Zero) }
+            val touchAlpha by animateFloatAsState(if (touchOffset != Offset.Zero) 1f else 0f, tween(1000))
 
             Box(
                 modifier = Modifier
@@ -454,21 +483,59 @@ fun MainScreen(
                         screenHeightPx = containerSize.height.toFloat()
                     }
                     .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                                val ptr = event.changes.firstOrNull()
+                                if (ptr != null && ptr.pressed) {
+                                    touchOffset = ptr.position
+                                } else {
+                                    touchOffset = Offset.Zero
+                                }
+                            }
+                        }
+                    }
+                    .pointerInput(Unit) {
+                        var startY = 0f
                         detectDragGestures(
+                            onDragStart = { offset ->
+                                startY = offset.y
+                            },
                             onDrag = { change, dragAmount ->
                                 change.consume()
                                 if (dragAmount.y < -30f) { // Swipe up
-                                    if (cinematicPhase == 0) cinematicPhase = 1
-                                    else if (cinematicPhase == 1) cinematicPhase = 2
+                                    if (isQuickSettingsOpen) {
+                                        isQuickSettingsOpen = false
+                                    } else {
+                                        if (cinematicPhase == 0) cinematicPhase = 1
+                                        else if (cinematicPhase == 1) cinematicPhase = 2
+                                    }
                                 } else if (dragAmount.y > 30f) { // Swipe down
-                                    if (cinematicPhase == 2) cinematicPhase = 1
-                                    else if (cinematicPhase == 1) cinematicPhase = 0
+                                    if (startY < 200f && cinematicPhase == 2) {
+                                        isQuickSettingsOpen = true
+                                    } else {
+                                        if (cinematicPhase == 2) cinematicPhase = 1
+                                        else if (cinematicPhase == 1) cinematicPhase = 0
+                                    }
+                                } else if (dragAmount.x > 30f) { // Swipe right
+                                    scope.launch { drawerState.open() }
+                                } else if (dragAmount.x < -30f) { // Swipe left
+                                    scope.launch { drawerState.close() }
                                 }
+                            }
+                        )
+                    }
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onLongPress = {
+                                scope.launch { drawerState.open() }
                             }
                         )
                     }
                     // Universal Holographic Neon Grid paper backdrop representing free coordinates space
                     .drawBehind {
+                        val breathingPhase = (kotlin.math.sin(System.currentTimeMillis() / 3000.0) * 0.5 + 0.5).toFloat()
+                        
                         if (cinematicPhase == 0) {
                             drawRect(color = Color.Black)
                             return@drawBehind
@@ -487,6 +554,49 @@ fun MainScreen(
                             return@drawBehind
                         }
                         
+                        if (cinematicPhase == 2) {
+                            // Phase 2 (Home Screen - Power Explosion): Magic circles and light pillars
+                            val w = size.width.takeIf { it.isFinite() && !it.isNaN() }?.coerceIn(1f, 4000f) ?: 1080f
+                            val h = size.height.takeIf { it.isFinite() && !it.isNaN() }?.coerceIn(1f, 4000f) ?: 2000f
+
+                            // Light pillars
+                            drawRect(
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(Color(0xFF00FF44).copy(alpha = 0.1f), Color.Transparent),
+                                    startY = 0f,
+                                    endY = h * 0.5f
+                                ),
+                                topLeft = Offset(w * 0.3f, 0f),
+                                size = androidx.compose.ui.geometry.Size(w * 0.1f, h)
+                            )
+                            drawRect(
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(Color(0xFF00FFFF).copy(alpha = 0.1f), Color.Transparent),
+                                    startY = 0f,
+                                    endY = h * 0.6f
+                                ),
+                                topLeft = Offset(w * 0.7f, 0f),
+                                size = androidx.compose.ui.geometry.Size(w * 0.15f, h)
+                            )
+
+                            // Faint magic circles matching positions
+                            drawCircle(
+                                color = Color(0xFF00FF44).copy(alpha = 0.05f),
+                                radius = 250f,
+                                center = Offset(w * 0.35f, h * 0.35f),
+                                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 8f)
+                            )
+                            drawCircle(
+                                color = Color(0xFF00FF44).copy(alpha = 0.03f),
+                                radius = 220f,
+                                center = Offset(w * 0.35f, h * 0.35f),
+                                style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                    width = 4f, 
+                                    pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(20f, 20f), 0f)
+                                )
+                            )
+                        }
+
                         when (currentBackdrop) {
                             "HOLOGRAPHIC_GRID" -> {
                                 val rawPx = 40.dp.toPx()
@@ -499,10 +609,17 @@ fun MainScreen(
                                 var xCoord = 0f
                                 var index = 0
                                 while (xCoord < w) {
+                                    var drawX = xCoord
+                                    if (touchAlpha > 0.01f) {
+                                        val distX = kotlin.math.abs(xCoord - touchOffset.x)
+                                        if (distX < 200f) {
+                                            drawX += (if (xCoord > touchOffset.x) 1f else -1f) * (200f - distX) * 0.1f * touchAlpha
+                                        }
+                                    }
                                     drawLine(
                                         color = if (index % 5 == 0) accentGridColor else gridColor,
-                                        start = Offset(xCoord, 0f),
-                                        end = Offset(xCoord, h),
+                                        start = Offset(drawX, 0f),
+                                        end = Offset(drawX, h),
                                         strokeWidth = if (index % 5 == 0) 1.5f else 0.8f
                                     )
                                     xCoord += gridSpace
@@ -512,10 +629,17 @@ fun MainScreen(
                                 var yCoord = 0f
                                 index = 0
                                 while (yCoord < h) {
+                                    var drawY = yCoord
+                                    if (touchAlpha > 0.01f) {
+                                        val distY = kotlin.math.abs(yCoord - touchOffset.y)
+                                        if (distY < 200f) {
+                                            drawY += (if (yCoord > touchOffset.y) 1f else -1f) * (200f - distY) * 0.1f * touchAlpha
+                                        }
+                                    }
                                     drawLine(
                                         color = if (index % 5 == 0) accentGridColor else gridColor,
-                                        start = Offset(0f, yCoord),
-                                        end = Offset(w, yCoord),
+                                        start = Offset(0f, drawY),
+                                        end = Offset(w, drawY),
                                         strokeWidth = if (index % 5 == 0) 1.5f else 0.8f
                                     )
                                     yCoord += gridSpace
@@ -523,59 +647,89 @@ fun MainScreen(
                                 }
                             }
                             "STARFIELD_DUST" -> {
-                                // Infinite cosmic starry twinkling particle dust
+                                // Infinite cosmic starry twinkling particle dust with touch repelling interaction
                                 drawRect(color = Color(0xFF030308))
                                 val w = size.width.takeIf { it.isFinite() && !it.isNaN() }?.coerceIn(1f, 4000f) ?: 1080f
                                 val h = size.height.takeIf { it.isFinite() && !it.isNaN() }?.coerceIn(1f, 4000f) ?: 2000f
                                 val starCount = 65
+                                val breathingScale = 0.95f + 0.1f * breathingPhase
+                                val breathingOpacity = 0.8f + 0.2f * breathingPhase
+                                
                                 for (i in 0 until starCount) {
-                                    val seedX = (31f * i * 17f) % w
-                                    val seedY = (23f * i * 37f) % h
+                                    val seedX = ((31f * i * 17f) % w - w/2) * breathingScale + w/2
+                                    val seedY = ((23f * i * 37f) % h - h/2) * breathingScale + h/2
                                     // Use backdropAnimValue to twinkle star opacity smoothly
                                     val sinVal = kotlin.math.sin(i * 12.3f + backdropAnimValue / 3f)
-                                    val starAlpha = (0.2f + 0.8f * sinVal).coerceIn(0f, 1f)
-                                    val sizeFactor = if (i % 7 == 0) 4f else 2.5f
+                                    val starAlpha = (0.2f + 0.8f * sinVal).coerceIn(0f, 1f) * breathingOpacity
+                                    val sizeFactor = (if (i % 7 == 0) 4f else 2.5f) * breathingScale
+
+                                    // Touch repelling effect
+                                    var drawX = seedX
+                                    var drawY = seedY
+                                    if (touchAlpha > 0.01f) {
+                                        val dist = kotlin.math.hypot((seedX - touchOffset.x).toDouble(), (seedY - touchOffset.y).toDouble()).toFloat()
+                                        if (dist < 400f && dist > 1f) {
+                                            val push = (1f - dist / 400f) * 120f * touchAlpha
+                                            val dx = (seedX - touchOffset.x) / dist
+                                            val dy = (seedY - touchOffset.y) / dist
+                                            drawX += dx * push
+                                            drawY += dy * push
+                                        }
+                                    }
+
                                     drawCircle(
                                         color = Color.White.copy(alpha = starAlpha),
                                         radius = sizeFactor,
-                                        center = Offset(seedX, seedY)
+                                        center = Offset(drawX, drawY)
                                     )
                                     if (i % 12 == 0) {
                                         drawLine(
                                             color = CosmicTheme.NeonCyan.copy(alpha = starAlpha * 0.35f),
-                                            start = Offset(seedX - 10f, seedY),
-                                            end = Offset(seedX + 10f, seedY),
+                                            start = Offset(drawX - 10f * breathingScale, drawY),
+                                            end = Offset(drawX + 10f * breathingScale, drawY),
                                             strokeWidth = 1f
                                         )
                                         drawLine(
                                             color = CosmicTheme.NeonCyan.copy(alpha = starAlpha * 0.35f),
-                                            start = Offset(seedX, seedY - 10f),
-                                            end = Offset(seedX, seedY + 10f),
+                                            start = Offset(drawX, drawY - 10f * breathingScale),
+                                            end = Offset(drawX, drawY + 10f * breathingScale),
                                             strokeWidth = 1f
                                         )
                                     }
                                 }
                             }
                             "NEBULA_GLOW" -> {
-                                // Floating galactic auroras & nebulae blends
+                                // Floating galactic auroras & nebulae blends with touch attraction
                                 drawRect(color = Color(0xFF020106))
                                 val w = size.width.takeIf { it.isFinite() && !it.isNaN() }?.coerceIn(1f, 4000f) ?: 1080f
                                 val h = size.height.takeIf { it.isFinite() && !it.isNaN() }?.coerceIn(1f, 4000f) ?: 2000f
                                 val radiusBase = size.minDimension.takeIf { it.isFinite() && !it.isNaN() }?.coerceIn(1f, 4000f) ?: 1000f
+
+                                val breathRadius = 0.9f + 0.2f * breathingPhase
+                                val breathAlpha = 0.85f + 0.15f * breathingPhase
+
+                                val c1X = w * 0.2f + (touchOffset.x - w * 0.2f) * 0.15f * touchAlpha
+                                val c1Y = h * 0.3f + (touchOffset.y - h * 0.3f) * 0.15f * touchAlpha
                                 drawCircle(
-                                    color = Color(0xFF3F1B85).copy(alpha = 0.35f),
-                                    center = Offset(w * 0.2f, h * 0.3f),
-                                    radius = maxOf(1f, radiusBase * 0.8f)
+                                    color = Color(0xFF3F1B85).copy(alpha = 0.35f * breathAlpha),
+                                    center = Offset(c1X, c1Y),
+                                    radius = maxOf(1f, radiusBase * 0.8f * breathRadius)
                                 )
+
+                                val c2X = w * 0.8f + (touchOffset.x - w * 0.8f) * 0.15f * touchAlpha
+                                val c2Y = h * 0.7f + (touchOffset.y - h * 0.7f) * 0.15f * touchAlpha
                                 drawCircle(
-                                    color = Color(0xFF861879).copy(alpha = 0.3f),
-                                    center = Offset(w * 0.8f, h * 0.7f),
-                                    radius = maxOf(1f, radiusBase * 0.9f)
+                                    color = Color(0xFF861879).copy(alpha = 0.3f * breathAlpha),
+                                    center = Offset(c2X, c2Y),
+                                    radius = maxOf(1f, radiusBase * 0.9f * breathRadius)
                                 )
+
+                                val c3X = w * 0.5f + (touchOffset.x - w * 0.5f) * 0.3f * touchAlpha
+                                val c3Y = h * 0.5f + (touchOffset.y - h * 0.5f) * 0.3f * touchAlpha
                                 drawCircle(
-                                    color = CosmicTheme.NeonCyan.copy(alpha = 0.18f),
-                                    center = Offset(w * 0.5f, h * 0.5f),
-                                    radius = maxOf(1f, radiusBase * 0.60f)
+                                    color = CosmicTheme.NeonCyan.copy(alpha = (0.18f + (0.1f * touchAlpha)) * breathAlpha),
+                                    center = Offset(c3X, c3Y),
+                                    radius = maxOf(1f, radiusBase * (0.60f + 0.1f * touchAlpha) * breathRadius)
                                 )
                             }
                             "VULKAN_MATRIX" -> {
@@ -587,18 +741,25 @@ fun MainScreen(
                                 val spacing = w / lineCount
                                 for (i in 0..lineCount) {
                                     val x = i * spacing
+                                    var drawX = x
+                                    if (touchAlpha > 0.01f) {
+                                        val distX = kotlin.math.abs(x - touchOffset.x)
+                                        if (distX < 300f) {
+                                            drawX += (if (x > touchOffset.x) 1f else -1f) * (300f - distX) * 0.15f * touchAlpha
+                                        }
+                                    }
                                     drawLine(
                                         color = Color(0x1A00FF33),
-                                        start = Offset(x, 0f),
-                                        end = Offset(x, h),
+                                        start = Offset(drawX, 0f),
+                                        end = Offset(drawX, h),
                                         strokeWidth = 1f
                                     )
                                     // Simulated animated digital green signal nodes falling
                                     val speedOffset = (backdropAnimValue * 12f + i * 220f) % h
                                     drawCircle(
-                                        color = Color(0xFF00FF33).copy(alpha = 0.75f),
-                                        radius = 3.5f,
-                                        center = Offset(x, speedOffset)
+                                        color = Color(0xFF00FF33).copy(alpha = 0.75f + (0.25f * touchAlpha)),
+                                        radius = 3.5f + (if (touchAlpha > 0f) 1.5f else 0f),
+                                        center = Offset(drawX, speedOffset)
                                     )
                                 }
                             }
@@ -619,6 +780,11 @@ fun MainScreen(
                         cinematicPhase = cinematicPhase
                     )
                 }
+                
+                CosmicQuickSettingsPanel(
+                    isVisible = isQuickSettingsOpen,
+                    onClose = { isQuickSettingsOpen = false }
+                )
             }
         }
     }
@@ -1020,6 +1186,7 @@ fun LauncherItemNode(
     screenHeightPx: Float,
     cinematicPhase: Int = 2
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var temporaryDragOffset by remember(item.id) { mutableStateOf<Offset?>(null) }
 
     val isSelected = selectedItemId == item.id
@@ -1040,17 +1207,74 @@ fun LauncherItemNode(
     val currentX = rawCurrentX.takeIf { !it.isNaN() && it.isFinite() } ?: 0f
     val currentY = rawCurrentY.takeIf { !it.isNaN() && it.isFinite() } ?: 0f
 
+    val dragScale by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (temporaryDragOffset != null) 1.15f else 1f, 
+        animationSpec = androidx.compose.animation.core.tween(300, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+    )
+
+    val infiniteIconTransition = rememberInfiniteTransition(label = "iconBreathing")
+    val breatheScale by infiniteIconTransition.animateFloat(
+        initialValue = 0.98f,
+        targetValue = 1.02f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000 + kotlin.math.abs(item.hashCode()) % 1000, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "breatheScale"
+    )
+
+    val floatY by infiniteIconTransition.animateFloat(
+        initialValue = -5f,
+        targetValue = 5f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(3000 + kotlin.math.abs(item.hashCode()) % 2000, easing = androidx.compose.animation.core.LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "floatY"
+    )
+
     if (cinematicPhase == 0) {
         if (item.isWidget && item.widgetType == "CLOCK") {
-            // Keep clock visible in AOD
+            // Keep clock visible in AOD, custom logic in the widget itself
         } else {
             // AOD Notification cinders for other apps
-            Box(
-                modifier = Modifier
-                    .offset { IntOffset(currentX.roundToInt(), currentY.roundToInt()) }
-                    .size(8.dp)
-                    .background(CosmicTheme.NeonCyan.copy(alpha = 0.5f), CircleShape)
-            )
+            if (item.hasNotification) {
+                val infiniteTransition = rememberInfiniteTransition(label = "aodPulse")
+                val pulseAlpha by infiniteTransition.animateFloat(
+                    initialValue = 0.2f,
+                    targetValue = 1.0f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(2500, easing = LinearEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "pulseAlpha"
+                )
+                
+                val glowColor = when (item.filterStyle) {
+                    "WHATSAPP_MATRIX" -> Color(0xFF00FF44)
+                    "SETTINGS_GEAR" -> Color(0xFFFF5500)
+                    "CAMERA_LENS" -> Color(0xFF00FFFF)
+                    "CHROME_SPHERICAL" -> Color(0xFF4285F4)
+                    "SPOTIFY_WAVES" -> Color(0xFF1DB954)
+                    "PHONE_HOLOGRAPHIC" -> Color(0xFF00A2FF)
+                    "CALENDAR_QUARTZ" -> Color(0xFF0066FF)
+                    "FILES_VAULT" -> Color(0xFFFFCC00)
+                    else -> CosmicTheme.NeonCyan
+                }
+
+                Box(
+                    modifier = Modifier
+                        .offset { IntOffset(currentX.roundToInt(), currentY.roundToInt()) }
+                        .size(12.dp)
+                        .background(glowColor.copy(alpha = pulseAlpha), CircleShape)
+                        .drawBehind {
+                            drawCircle(
+                                color = glowColor.copy(alpha = pulseAlpha * 0.5f),
+                                radius = size.width
+                            )
+                        }
+                )
+            }
             return
         }
     }
@@ -1060,13 +1284,14 @@ fun LauncherItemNode(
             .offset {
                 IntOffset(
                     currentX.roundToInt(),
-                    currentY.roundToInt()
+                    (currentY + floatY).roundToInt()
                 )
             }
             .graphicsLayer {
                 rotationZ = currentRotation
-                scaleX = currentScale
-                scaleY = currentScale
+                scaleX = currentScale * dragScale * breatheScale
+                scaleY = currentScale * dragScale * breatheScale
+                shadowElevation = if (temporaryDragOffset != null) 30f else 0f
             }
             .pointerInput(item.id) {
                 detectDragGestures(
@@ -1109,7 +1334,24 @@ fun LauncherItemNode(
                     }
                 )
             }
-            .clickable { viewModel.selectItem(item.id) },
+            .clickable { 
+                viewModel.selectItem(item.id) 
+                
+                val packageName = item.packageName
+                if (packageName.isNotEmpty()) {
+                    viewModel.incrementUsageCount(item.id)
+                    val pm = context.packageManager
+                    val intent = pm.getLaunchIntentForPackage(packageName)
+                    if (intent != null) {
+                        intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        try {
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                }
+            },
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -1119,9 +1361,9 @@ fun LauncherItemNode(
             if (item.isWidget) {
                 // Draw dynamic widgets
                 when (item.widgetType) {
-                    "CLOCK" -> DeepEclipseClockWidget()
-                    "RAM" -> RamCrescentWidget()
-                    "BATTERY" -> BatteryElectromagneticWidget()
+                    "CLOCK" -> DeepEclipseClockWidget(cinematicPhase = cinematicPhase, hasNotification = item.hasNotification)
+                    "RAM" -> RamCrescentWidget(cinematicPhase = cinematicPhase)
+                    "BATTERY" -> BatteryElectromagneticWidget(cinematicPhase = cinematicPhase)
                 }
             } else {
                 // Draw App forged icon
@@ -1129,10 +1371,24 @@ fun LauncherItemNode(
                     modifier = Modifier.size(80.dp),
                     contentAlignment = Alignment.Center
                 ) {
+                    val w = screenWidthPx
+                    val h = screenHeightPx
+                    var rechargeMultiplier = 1.0f
+                    if (cinematicPhase == 2) {
+                        val inPillar1 = currentX >= w * 0.3f && currentX <= w * 0.4f && currentY <= h * 0.5f
+                        val inPillar2 = currentX >= w * 0.7f && currentX <= w * 0.85f && currentY <= h * 0.6f
+                        if (inPillar1 || inPillar2) {
+                            rechargeMultiplier = 2.5f
+                        }
+                    }
+
                     ForgedIcon(
                         label = item.label,
                         style = item.filterStyle,
-                        cinematicPhase = cinematicPhase
+                        cinematicPhase = cinematicPhase,
+                        hasNotification = item.hasNotification,
+                        rechargeMultiplier = rechargeMultiplier,
+                        usageCount = item.usageCount
                     )
 
                     // Small highlighting marker if currently selected

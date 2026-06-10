@@ -21,6 +21,14 @@ class LauncherRepository(private val launcherItemDao: LauncherItemDao) {
         launcherItemDao.updateFilterStyle(id, filterStyle)
     }
 
+    suspend fun incrementUsageCount(id: String) {
+        launcherItemDao.incrementUsageCount(id)
+    }
+
+    suspend fun updateNotification(id: String, hasNotification: Boolean) {
+        launcherItemDao.updateNotification(id, hasNotification)
+    }
+
     suspend fun deleteItemById(id: String) {
         launcherItemDao.deleteItemById(id)
     }
